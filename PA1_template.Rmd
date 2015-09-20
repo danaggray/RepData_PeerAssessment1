@@ -1,25 +1,172 @@
+
 ---
 title: "Reproducible Research: Peer Assessment 1"
 output: 
   html_document:
     keep_md: true
 ---
+## Setup Dev Environment w/ defaults
+```{r}
+# Set working directory
+setwd("C:/Projects/Coursera/RR")
+# Install required packages (if needed, may require prompt answer)
+#install.packages("data.table")
+
+# Load required libraries, ggplot to be used for all plots.
+library(knitr)
+library(data.table)
+library(ggplot2)
+
+# Set default chunk code
+opts_chunk$set(echo = TRUE, results = 'hold')
+
+```
+
 
 
 ## Loading and preprocessing the data
+Load raw data and convert 'date' field data to date data type
+```{r}
+temp <- tempfile()
+# Download file from source if required and write to temp file
+#download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip",temp, mode="wb")
+
+# Unzip temp file to working csv for processing
+#unzip(temp, "activity.csv")
+
+activityData <- read.csv('activity.csv', header = TRUE, sep = ",",
+                  colClasses=c("numeric", "character", "numeric"))
+
+# Cast date field data to date type
+activityData$date <- as.Date(activityData$date) 
+
+# Inspect the data
+#str(activityData)
+#head(activityData)
+
+```
 
 
 
 ## What is mean total number of steps taken per day?
+Remove na values per requirement (For this part of the assignment, you can ignore the missing values in the dataset)
+Generate histogram of the total number of steps taken per day
+
+```{r}
+cleanActivityData <- na.omit(activityData) 
+
+# sum steps by date
+subDailySteps <- rowsum(cleanActivityData$steps, format(cleanActivityData$date, '%Y-%m-%d')) 
+dfDailySteps <- data.frame(subDailySteps) 
+names(dfDailySteps) <- ("steps")
+
+# Plot histogram
+hist(dfDailySteps$steps, 
+     main=" ",
+     breaks=10,
+     xlab="Total Number of Steps Taken Daily")
+
+```
+
+## Output mean and median of daily steps
+
+```{r}
+# Generate mean of steps
+mean(dfDailySteps$steps)
+
+# Generate median of steps
+median(dfDailySteps$steps) 
+```
 
 
 
 ## What is the average daily activity pattern?
+```{r}
+library(plyr)
+# Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+subMeanSteps <- ddply(cleanActivityData,~interval, summarise, mean=mean(steps))
+
+# Plot the average
+qplot(x=interval, y=mean, data = subMeanSteps,  geom = "line",
+      xlab="5-Minute Interval (24 hr clock)",
+      ylab="Steps Count",
+      main="Average # Steps Averaged Across All Days"
+      )
 
 
+```
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r}
+# Max steps interval
+subMeanSteps[which.max(subMeanSteps$mean), ]
+```
 
 ## Imputing missing values
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs) (use is.na function)
+```{r}
+missingValues <- sum(is.na(activityData$steps))
 
+# Output value
+missingValues
+
+```
+
+### Strategy for filling in all of the missing values in the dataset. We will replace missing values with the mean of the same interval across all days
+
+```{r}
+# fill for an interval. data is the unadulterated data frame and meanSteps (subMeanSteps) is the subsetted dataframe of mean steps
+## Create the average number of steps per weekday and interval
+avgData <- ddply(cleanActivityData, .(interval, date), summarize, Avg = mean(steps))
+
+## Create dataset with all NAs for substitution
+naData<- activityData[is.na(activityData$steps),]
+## Merge NA data with average weekday interval for substitution
+filledData<-merge(naData, avgData, by=c("interval", "date"))
+```
+
+```{r}
+newData<- filledData[,c(3,2,1)]
+colnames(newData)<- c("steps", "date", "interval")
+
+##Merge the NA averages and non NA data together
+mergeData <- rbind(cleanActivityData, newData)
+
+
+
+
+```
+Mean
+```{r}
+##Create sum of steps per date for comparison
+sumData <- aggregate(mergeData$steps ~ mergeData$date, FUN=sum, )
+colnames(sumData)<- c("Date", "Steps")
+
+## Mean of Steps with NA data taken care of
+as.integer(mean(sumData$Steps))
+```
+Median
+```{r}
+as.integer(median(sumData$Steps))
+```
+
+```{r}
+hist(sumData$Steps, breaks=10, xlab="Steps", main = "Total Steps per Day w/ filled data")
+
+```
+No difference any consequence for imputing missing values from the original 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+
+```{r}
+hist(sumData$steps, 
+     main=" ",
+     breaks=10,
+     xlab="Total Number of Steps Taken Daily")
+
+
+```
+
+
